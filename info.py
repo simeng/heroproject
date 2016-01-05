@@ -7,6 +7,17 @@ import datetime
 import sys
 from pprint import pprint
 
+def loop2dur(loops):
+    # 16 gameloops per second
+    seconds = loops / 16
+    mins = seconds / 60
+    secs = seconds % 60
+    timestring = ""
+    if mins > 0:
+        timestring = "%02dm" % mins
+    timestring += "%02ds" % secs
+    return {'sec': seconds, 'duration': { 'min': mins, 'sec': secs, 'string': timestring }}
+
 parser = argparse.ArgumentParser()
 parser.add_argument('replay_file', help='.SC2Replay file to load')
 args = parser.parse_args()
@@ -27,8 +38,10 @@ except Exception as e:
 
 contents = archive.read_file('replay.details')
 details = protocol.decode_replay_details(contents)
+
 contents = archive.read_file('replay.initData')
 initdata = protocol.decode_replay_initdata(contents)
+
 contents = archive.read_file('replay.message.events')
 messages = protocol.decode_replay_message_events(contents)
 
@@ -37,6 +50,7 @@ lobby_state = initdata['m_syncLobbyState']['m_lobbyState']
 
 
 print details['m_title']
+print "Elapsed time: %s (%d)" % (loop2dur(header['m_elapsedGameLoops'])['duration']['string'], header['m_elapsedGameLoops'])
 print "RNGesus says: %s" % (lobby_state['m_randomSeed'])
 if game_options['m_competitive']:
     print "<competative game>"
@@ -51,18 +65,19 @@ for player in details['m_playerList']:
     print "%d: %s (%s) [playerId: %d]" % (player['m_teamId'], player['m_hero'], player['m_name'], player['m_toon']['m_id'])
 
 for message in messages:
+    duration = loop2dur(message['_gameloop'])
     if message['_event'] == 'NNet.Game.SPingMessage':
         if message['m_recipient'] == 1:
             target = 'all'
         else:
             target = 'allies? (%s)' % (message['m_recipient'])
         player_name = details['m_playerList'][message['_userid']['m_userId']]['m_name']
-        print "%s: #%s [%s] PING (%s, %s)" % (message['_gameloop'], target, player_name, message['m_point']['x'], message['m_point']['y'])
+        print "%s: #%s [%s] PING (%s, %s)" % (duration['duration']['string'], target, player_name, message['m_point']['x'], message['m_point']['y'])
     elif message['_event'] == 'NNet.Game.SChatMessage':
         if message['m_recipient'] == 1:
             target = 'all'
         else:
             target = 'allies? (%s)' % (message['m_recipient'])
         player_name = details['m_playerList'][message['_userid']['m_userId']]['m_name']
-        print "%s: #%s <%s> %s" % (message['_gameloop'], target, player_name, message['m_string'])
+        print "%s: #%s <%s> %s" % (duration['duration']['string'], target, player_name, message['m_string'])
 
